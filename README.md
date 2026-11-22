@@ -102,6 +102,27 @@ Install into your profile:
 nix profile install github:YOUR-USERNAME/controller-idle-inhibit
 ```
 
+#### Plain binary outputs
+
+Both package outputs are plain, unwrapped executables — no systemd unit,
+no wrapper, nothing NixOS-specific. `nix build` drops a `result` symlink
+with the binary at `result/bin/controller-idle-inhibit`:
+
+```sh
+nix build github:YOUR-USERNAME/controller-idle-inhibit          # glibc build, for Nix/NixOS use
+nix build github:YOUR-USERNAME/controller-idle-inhibit#static   # fully static musl build
+```
+
+The `static` output is a single self-contained executable that runs on
+*any* Linux distribution — no /nix/store, no shared libraries. Ideal for
+copying to a machine without Nix, or attaching to a GitHub release:
+
+```sh
+nix build github:YOUR-USERNAME/controller-idle-inhibit#static
+install -Dm755 result/bin/controller-idle-inhibit ~/.local/bin/
+file result/bin/controller-idle-inhibit   # "statically linked"
+```
+
 Or point your own flake at the repo and use the overlay and/or modules:
 
 ```nix

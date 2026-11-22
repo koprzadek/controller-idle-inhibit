@@ -24,6 +24,13 @@
     {
       packages = forAllSystems (pkgs: rec {
         controller-idle-inhibit = pkgs.callPackage ./nix/package.nix { };
+
+        # Fully static musl build: a single self-contained executable that
+        # runs on any Linux distribution — no /nix/store, no shared
+        # libraries. The crate is pure Rust (no C deps), so no special
+        # flags are needed for pkgsStatic.
+        static = pkgs.pkgsStatic.callPackage ./nix/package.nix { };
+
         default = controller-idle-inhibit;
       });
 
@@ -52,6 +59,7 @@
       checks = forAllSystems (pkgs: {
         controller-idle-inhibit =
           self.packages.${pkgs.system}.controller-idle-inhibit;
+        controller-idle-inhibit-static = self.packages.${pkgs.system}.static;
       });
     };
 }
