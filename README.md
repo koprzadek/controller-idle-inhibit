@@ -88,9 +88,78 @@ inhibitors whose surface belongs to a *visible view*.
 
 ## Building & installing
 
-Needs Rust 1.70+ (`rustup` or your distro's `cargo`). A prebuilt x86_64
-binary (built on Debian 13, glibc ≥ 2.34 — fine for Debian 12+, Ubuntu
-22.04+, Arch, Fedora 35+) is included in `bin/` as a fallback.
+### Nix / flake
+
+Linux only (evdev + Wayland). Try it without installing:
+
+```sh
+nix run github:YOUR-USERNAME/controller-idle-inhibit
+```
+
+Install into your profile:
+
+```sh
+nix profile install github:YOUR-USERNAME/controller-idle-inhibit
+```
+
+Or point your own flake at the repo and use the overlay and/or modules:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    controller-idle-inhibit.url = "github:YOUR-USERNAME/controller-idle-inhibit";
+    # ... plus whatever else you already have (home-manager, ...)
+  };
+
+  outputs = { self, nixpkgs, controller-idle-inhibit, ... }: {
+    # Optional: expose pkgs.controller-idle-inhibit to consumers of your flake.
+    overlays.default = controller-idle-inhibit.overlays.default;
+
+    nixosConfigurations.my-machine = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ({ ... }: {
+          nixpkgs.overlays = [ controller-idle-inhibit.overlays.default ];
+
+          # Installs the package and the systemd --user unit:
+          services.controller-idle-inhibit = {
+            enable = true;
+            grace = 120;          # seconds after the last input
+            # buttonsOnly = true; # pads that stream gyro noise
+          };
+        })
+      ];
+    };
+
+    # or with Home Manager:
+    homeConfigurations.my-user = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [
+        controller-idle-inhibit.homeManagerModules.default
+        ({ ... }: {
+          services.controller-idle-inhibit = {
+            enable = true;
+            grace = 120;
+          };
+        })
+      ];
+    };
+  };
+}
+```
+
+Both modules define a systemd `--user` unit equivalent to the shipped
+`controller-idle-inhibit.service`: bound to `graphical-session.target`,
+restarted on failure, logging captured by the journal. Available options:
+`enable`, `package`, `grace`, `buttonsOnly`, `verbose`, `extraArgs`.
+
+river still has to start `graphical-session.target` itself — see
+[Hooking into your river session](#hooking-into-your-river-session).
+
+### From source
+
+Needs Rust 1.70+ (`rustup` or your distro's `cargo`):
 
 ```sh
 ./install.sh            # build + install binary and systemd --user unit
@@ -234,10 +303,12 @@ Change the service defaults by editing the `ExecStart=` line in the unit
 ## Project layout
 
 ```
-├── Cargo.toml
+├── Cargo.toml / Cargo.lock
+├── flake.nix                        Nix package, overlay, NixOS + HM modules
+├── nix/package.nix                  buildRustPackage expression
+├── modules/                         module implementations (nixos, home-manager)
 ├── install.sh
 ├── controller-idle-inhibit.service   systemd --user unit
-├── bin/                              prebuilt x86_64 binary (glibc ≥ 2.34)
 ├── src/
 │   ├── main.rs      CLI, signal handling, activity/grace state machine
 │   ├── gamepad.rs   evdev watcher: gamepad detection, activity filter, hotplug
