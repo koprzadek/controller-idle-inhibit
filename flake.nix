@@ -38,9 +38,6 @@
         controller-idle-inhibit = final.callPackage ./nix/package.nix { };
       };
 
-      nixosModules.default = import ./modules/nixos.nix;
-      homeManagerModules.default = import ./modules/home-manager.nix;
-
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [

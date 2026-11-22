@@ -11,8 +11,7 @@ idle-inhibit protocol.
 ```
 
 Built for **river** (classic 0.3.x and the 1.0 alpha), single ~400 KB static-ish
-Rust binary, zero native dependencies beyond glibc, runs as a systemd user
-service from login.
+Rust binary, zero native dependencies beyond glibc.
 
 ---
 
@@ -104,8 +103,7 @@ nix profile install github:koprzadek/controller-idle-inhibit
 
 #### Plain binary outputs
 
-Both package outputs are plain, unwrapped executables — no systemd unit,
-no wrapper, nothing NixOS-specific. `nix build` drops a `result` symlink
+Both package outputs are plain. `nix build` drops a `result` symlink
 with the binary at `result/bin/controller-idle-inhibit`:
 
 ```sh
@@ -123,46 +121,25 @@ install -Dm755 result/bin/controller-idle-inhibit ~/.local/bin/
 file result/bin/controller-idle-inhibit   # "statically linked"
 ```
 
-Or point your own flake at the repo and use the overlay and/or modules:
+Or point your own flake at the repo and use the overlay:
 
 ```nix
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     controller-idle-inhibit.url = "github:koprzadek/controller-idle-inhibit";
-    # ... plus whatever else you already have (home-manager, ...)
   };
 
   outputs = { self, nixpkgs, controller-idle-inhibit, ... }: {
-    # Optional: expose pkgs.controller-idle-inhibit to consumers of your flake.
+    # Exposes pkgs.controller-idle-inhibit to your whole configuration.
     overlays.default = controller-idle-inhibit.overlays.default;
 
     nixosConfigurations.my-machine = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
-        ({ ... }: {
+        ({ pkgs, ... }: {
           nixpkgs.overlays = [ controller-idle-inhibit.overlays.default ];
-
-          # Installs the package and the systemd --user unit:
-          services.controller-idle-inhibit = {
-            enable = true;
-            grace = 120;          # seconds after the last input
-            # buttonsOnly = true; # pads that stream gyro noise
-          };
-        })
-      ];
-    };
-
-    # or with Home Manager:
-    homeConfigurations.my-user = home-manager.lib.homeManagerConfiguration {
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
-      modules = [
-        controller-idle-inhibit.homeManagerModules.default
-        ({ ... }: {
-          services.controller-idle-inhibit = {
-            enable = true;
-            grace = 120;
-          };
+          environment.systemPackages = [ pkgs.controller-idle-inhibit ];
         })
       ];
     };
@@ -170,21 +147,13 @@ Or point your own flake at the repo and use the overlay and/or modules:
 }
 ```
 
-Both modules define a systemd `--user` unit equivalent to the shipped
-`controller-idle-inhibit.service`: bound to `graphical-session.target`,
-restarted on failure, logging captured by the journal. Available options:
-`enable`, `package`, `grace`, `buttonsOnly`, `verbose`, `extraArgs`.
-
-river still has to start `graphical-session.target` itself — see
-[Hooking into your river session](#hooking-into-your-river-session).
 
 ### From source
 
 Needs Rust 1.70+ (`rustup` or your distro's `cargo`):
 
 ```sh
-./install.sh            # build + install binary and systemd --user unit
-./install.sh --enable   # same, but also enable the unit right away
+./install.sh   # build (or use the bundled binary in bin/) + install to ~/.local/bin
 ```
 
 or manually:
@@ -192,36 +161,29 @@ or manually:
 ```sh
 cargo build --release
 install -Dm755 target/release/controller-idle-inhibit ~/.local/bin/
-install -Dm644 controller-idle-inhibit.service \
-    ~/.config/systemd/user/controller-idle-inhibit.service
-systemctl --user daemon-reload
 ```
 
-## Hooking into your river session
+## Running it in your session
 
-river does not start `graphical-session.target` by itself, so add this to
-your river startup — e.g. at the end of `~/.config/river/init`:
-
-```sh
-systemctl --user import-environment WAYLAND_DISPLAY
-systemctl --user start graphical-session.target
-```
-
-Then enable the service:
+The daemon needs `WAYLAND_DISPLAY` to reach the compositor, so start it from
+inside your session. For river, add one line to the end of
+`~/.config/river/init`:
 
 ```sh
-systemctl --user enable --now controller-idle-inhibit.service
-```
-
-Prefer not to involve systemd? You can simply spawn it from river directly:
-
-```sh
-# ~/.config/river/init
 spawn "sh" "-c" "exec controller-idle-inhibit >/dev/null 2>&1 &"
 ```
 
-(The systemd route is recommended: journald logs, automatic restart, clean
-session lifecycle.)
+Any session autostart mechanism works the same way (sway's `exec`, hyprland's
+`exec-once`, `~/.xinitrc`, ...). If it starts before the compositor socket
+exists, it does not crash — it logs "compositor not ready" and retries every
+2 s until river (or any other compositor) shows up.
+
+Logs go to stdout; redirect to a file if you want to keep a trail:
+
+```sh
+# ~/.config/river/init
+spawn "sh" "-c" "exec controller-idle-inhibit >>/tmp/idle-inhibit.log 2>&1 &"
+```
 
 ## Usage
 
@@ -246,18 +208,16 @@ Example: quick release, buttons only:
 controller-idle-inhibit --grace 30 --buttons-only
 ```
 
-Change the service defaults by editing the `ExecStart=` line in the unit
-(or drop an override with `systemctl --user edit controller-idle-inhibit`).
+Flags go straight into your autostart line, e.g.:
+
+```sh
+spawn "sh" "-c" "exec controller-idle-inhibit --grace 30 --buttons-only >/dev/null 2>&1 &"
+```
 
 ## Verifying it works
 
-1. Watch the journal while pressing gamepad buttons:
-
-   ```sh
-   journalctl --user -u controller-idle-inhibit -f
-   ```
-
-   Expected lines:
+1. Run it in a terminal (or `tail -f` your redirected log) while pressing
+   gamepad buttons. Expected lines:
 
    ```
    [info] gamepad connected: Microsoft Xbox Series X Controller (/dev/input/event25)
@@ -319,24 +279,24 @@ Change the service defaults by editing the `ExecStart=` line in the unit
 - **Daemon exits with "compositor does not support …".**
   You are probably running it outside the river session (no
   `WAYLAND_DISPLAY`), or against a compositor without idle-inhibit. The
-  systemd unit retries every 2 s, so it also survives starting before river.
+  daemon retries every 2 s on its own, so it also survives starting before
+  river.
 
 ## Project layout
 
 ```
 ├── Cargo.toml / Cargo.lock
-├── flake.nix                        Nix package, overlay, NixOS + HM modules
+├── flake.nix                        Nix package + overlay (+ static musl output)
 ├── nix/package.nix                  buildRustPackage expression
-├── modules/                         module implementations (nixos, home-manager)
-├── install.sh
-├── controller-idle-inhibit.service   systemd --user unit
+├── install.sh                       build-or-fallback installer (~/.local/bin)
+├── bin/                             bundled prebuilt glibc binary (install.sh fallback)
 ├── src/
 │   ├── main.rs      CLI, signal handling, activity/grace state machine
 │   ├── gamepad.rs   evdev watcher: gamepad detection, activity filter, hotplug
 │   ├── session.rs   invisible layer surface + inhibitor lifecycle
 │   ├── wayland.rs   minimal Wayland client (registry, binds, event pump)
 │   ├── wire.rs      Wayland wire framing/serialization primitives
-│   └── journal.rs   stdout logging (captured by the journal)
+│   └── journal.rs   stdout logging
 └── tests/
     ├── session.rs           integration test against the fake compositor
     └── mock_compositor.py   minimal protocol-faithful fake compositor

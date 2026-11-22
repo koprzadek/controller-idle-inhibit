@@ -3,19 +3,13 @@
 #   - builds with cargo when available (otherwise falls back to the bundled
 #     prebuilt binary in bin/, which needs glibc >= 2.34),
 #   - installs the binary to ~/.local/bin,
-#   - installs the systemd --user unit,
-#   - prints the two-line river setup.
+#   - prints how to start it from your compositor session.
 #
-# Usage: ./install.sh            (build + install)
-#        ./install.sh --enable   (build + install + enable the unit now)
+# Usage: ./install.sh
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bin_dir="$HOME/.local/bin"
-unit_dir="$HOME/.config/systemd/user"
-
-enable=0
-[ "${1:-}" = "--enable" ] && enable=1
 
 if ! command -v cargo >/dev/null 2>&1 && [ -x "$HOME/.cargo/bin/cargo" ]; then
     export PATH="$HOME/.cargo/bin:$PATH"
@@ -35,36 +29,22 @@ else
 fi
 
 install -Dm755 "$src_bin" "$bin_dir/controller-idle-inhibit"
-install -Dm644 "$here/controller-idle-inhibit.service" \
-    "$unit_dir/controller-idle-inhibit.service"
-systemctl --user daemon-reload
 
-echo "==> binary:  $bin_dir/controller-idle-inhibit"
-echo "==> unit:    $unit_dir/controller-idle-inhibit.service"
+echo "==> installed: $bin_dir/controller-idle-inhibit"
 
 cat <<'EOF'
 
 Next steps
 ----------
-1. Make your river session publish itself to systemd. Add these two lines
-   to your river startup (e.g. the end of ~/.config/river/init):
+Start the daemon from inside your Wayland session so it can see
+WAYLAND_DISPLAY — e.g. at the end of ~/.config/river/init:
 
-       systemctl --user import-environment WAYLAND_DISPLAY
-       systemctl --user start graphical-session.target
+    spawn "sh" "-c" "exec controller-idle-inhibit >/dev/null 2>&1 &"
 
-2. Enable the daemon:
+Any session autostart works the same way (sway `exec`, hyprland
+`exec-once`, ...). If the compositor is not up yet, the daemon logs
+"compositor not ready" and retries every 2 s until it is.
 
-       systemctl --user enable --now controller-idle-inhibit.service
-
-3. Plug in a gamepad, press a button, and watch:
-
-       journalctl --user -u controller-idle-inhibit -f
-
-   You should see "gamepad activity — idle inhibited" and your idle daemon
-   (swayidle/hypridle/...) should no longer blank the screen while you play.
+Logs go to stdout: run it in a terminal first to watch the log lines while
+pressing buttons, or redirect to a file to keep a trail.
 EOF
-
-if [ "$enable" = 1 ]; then
-    echo "==> enabling unit"
-    systemctl --user enable --now controller-idle-inhibit.service
-fi

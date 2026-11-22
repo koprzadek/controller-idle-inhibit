@@ -1,5 +1,6 @@
-//! Tiny logging helpers. Everything goes to stdout, which the systemd user
-//! manager captures into the journal with a proper timestamp.
+//! Tiny logging helpers. Everything goes to stdout — redirect it to a file
+//! or let your session (compositor autostart, service manager, terminal)
+//! capture it however you like.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
