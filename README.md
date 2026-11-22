@@ -93,13 +93,13 @@ inhibitors whose surface belongs to a *visible view*.
 Linux only (evdev + Wayland). Try it without installing:
 
 ```sh
-nix run github:YOUR-USERNAME/controller-idle-inhibit
+nix run github:koprzadek/controller-idle-inhibit
 ```
 
 Install into your profile:
 
 ```sh
-nix profile install github:YOUR-USERNAME/controller-idle-inhibit
+nix profile install github:koprzadek/controller-idle-inhibit
 ```
 
 #### Plain binary outputs
@@ -109,8 +109,8 @@ no wrapper, nothing NixOS-specific. `nix build` drops a `result` symlink
 with the binary at `result/bin/controller-idle-inhibit`:
 
 ```sh
-nix build github:YOUR-USERNAME/controller-idle-inhibit          # glibc build, for Nix/NixOS use
-nix build github:YOUR-USERNAME/controller-idle-inhibit#static   # fully static musl build
+nix build github:koprzadek/controller-idle-inhibit          # glibc build, for Nix/NixOS use
+nix build github:koprzadek/controller-idle-inhibit#static   # fully static musl build
 ```
 
 The `static` output is a single self-contained executable that runs on
@@ -118,7 +118,7 @@ The `static` output is a single self-contained executable that runs on
 copying to a machine without Nix, or attaching to a GitHub release:
 
 ```sh
-nix build github:YOUR-USERNAME/controller-idle-inhibit#static
+nix build github:koprzadek/controller-idle-inhibit#static
 install -Dm755 result/bin/controller-idle-inhibit ~/.local/bin/
 file result/bin/controller-idle-inhibit   # "statically linked"
 ```
@@ -129,7 +129,7 @@ Or point your own flake at the repo and use the overlay and/or modules:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    controller-idle-inhibit.url = "github:YOUR-USERNAME/controller-idle-inhibit";
+    controller-idle-inhibit.url = "github:koprzadek/controller-idle-inhibit";
     # ... plus whatever else you already have (home-manager, ...)
   };
 

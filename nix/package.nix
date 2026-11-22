@@ -36,6 +36,7 @@ rustPlatform.buildRustPackage {
   meta = {
     description =
       "Inhibit Wayland idle while a gamepad is in use (targets river)";
+    homepage = "https://github.com/koprzadek/controller-idle-inhibit";
     longDescription = ''
       Watches gamepads directly through evdev and holds a
       zwp_idle_inhibitor_v1 on their behalf, so compositor-driven idle
