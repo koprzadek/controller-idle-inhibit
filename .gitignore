@@ -1,0 +1,12 @@
+# Rust
+/target
+
+# Nix build results
+/result
+/result-*
+
+# Prebuilt binary snapshot (kept out of git; attach it to GitHub releases)
+/bin
+
+# Local helper files
+*.rs.bk

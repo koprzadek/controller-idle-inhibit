@@ -1,0 +1,19 @@
+[package]
+name = "controller-idle-inhibit"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Inhibit Wayland idle while a gamepad is in use (targets river)"
+readme = "README.md"
+keywords = ["wayland", "idle-inhibit", "river", "gamepad", "daemon"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+evdev = "0.13"
+libc = "0.2"
+signal-hook = "0.3"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

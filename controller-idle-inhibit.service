@@ -1,0 +1,20 @@
+[Unit]
+# Starts with the graphical session and is stopped together with it.
+# river does not start graphical-session.target by itself; see README.md
+# ("Hooking into your river session") for the two lines to add to your
+# river startup.
+Description=Inhibit Wayland idle while a gamepad is in use
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/controller-idle-inhibit
+Restart=on-failure
+RestartSec=3
+# Journal-friendly logging (the daemon logs to stdout).
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target
