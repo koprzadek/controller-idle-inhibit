@@ -177,7 +177,10 @@ impl Wayland {
         debug_assert!(cmsg_space <= control.len());
         unsafe {
             let hdr = control.as_mut_ptr() as *mut libc::cmsghdr;
-            (*hdr).cmsg_len = libc::CMSG_LEN(std::mem::size_of::<RawFd>() as libc::c_uint) as usize;
+            // musl declares cmsghdr.cmsg_len and msghdr.msg_controllen as
+            // socklen_t (u32), glibc as size_t (usize). `as _` adapts to
+            // whichever field type the target libc uses, so both build.
+            (*hdr).cmsg_len = libc::CMSG_LEN(std::mem::size_of::<RawFd>() as libc::c_uint) as _;
             (*hdr).cmsg_level = libc::SOL_SOCKET;
             (*hdr).cmsg_type = libc::SCM_RIGHTS;
             *(libc::CMSG_DATA(hdr) as *mut RawFd) = fd;
@@ -186,7 +189,7 @@ impl Wayland {
             msg.msg_iov = &iov as *const libc::iovec as *mut libc::iovec;
             msg.msg_iovlen = 1;
             msg.msg_control = control.as_mut_ptr() as *mut libc::c_void;
-            msg.msg_controllen = cmsg_space;
+            msg.msg_controllen = cmsg_space as _;
 
             loop {
                 let n = libc::sendmsg(self.stream.as_raw_fd(), &msg, libc::MSG_NOSIGNAL);
